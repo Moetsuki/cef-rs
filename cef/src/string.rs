@@ -5,7 +5,7 @@ use cef_dll_sys::{
     _cef_string_utf8_t, _cef_string_wide_t,
 };
 use std::{
-    fmt::{self, Display, Formatter},
+    fmt::{self, Debug, Display, Formatter},
     mem,
     ptr::{self, NonNull},
     slice,
@@ -867,28 +867,29 @@ impl CefStringMultimap {
     }
 }
 
-impl Display for CefStringMultimap {
+impl Debug for CefStringMultimap {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         unsafe {
             let size = cef_dll_sys::cef_string_multimap_size(self.0);
 
-            let mut result = String::new();
-
+            writeln!(f, "{{")?;
             for i in 0..size {
                 let mut key = mem::zeroed();
                 cef_dll_sys::cef_string_multimap_key(self.0, i, &mut key);
                 let mut value = mem::zeroed();
                 cef_dll_sys::cef_string_multimap_value(self.0, i, &mut value);
 
-                result.push_str(&format!(
-                    "{} => {}\n",
+                writeln!(
+                    f,
+                    "{}: {},",
                     CefString::from(key),
                     CefString::from(value)
-                ))
+                )?;
             }
-
-            write!(f, "{}", result)
+            writeln!(f, "}}")?;
         }
+
+        Ok(())
     }
 }
 
