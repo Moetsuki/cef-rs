@@ -854,18 +854,16 @@ impl IntoIterator for CefStringMap {
 pub struct CefStringMultimap(*mut _cef_string_multimap_t);
 
 impl CefStringMultimap {
-    pub fn new() -> Self {
+    pub fn new() -> Option<Self> {
         unsafe {
             let value = cef_dll_sys::cef_string_multimap_alloc();
 
-            Self(value)
+            if value.is_null() {
+                None
+            } else {
+                Some(Self(value))
+            }
         }
-    }
-}
-
-impl Default for CefStringMultimap {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -897,9 +895,7 @@ impl Display for CefStringMultimap {
 impl Drop for CefStringMultimap {
     fn drop(&mut self) {
         unsafe {
-            self.0
-                .as_mut()
-                .map(|value| cef_dll_sys::cef_string_multimap_free(value));
+            cef_dll_sys::cef_string_multimap_free(self.0);
         }
     }
 }
