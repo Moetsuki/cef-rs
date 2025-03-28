@@ -865,6 +865,72 @@ impl CefStringMultimap {
             }
         }
     }
+
+    pub fn append(&mut self, key: &CefString, value: &CefString) -> bool {
+        unsafe {
+            if let Some(map) = self.0.as_mut() {
+                cef_dll_sys::cef_string_multimap_append(map, key.into(), value.into());
+
+                // libcef/cef_string_multimap.cc:97
+                return true;
+            }
+
+            false
+        }
+    }
+
+    pub fn key(&self, index: usize, key: &mut CefString) -> bool {
+        unsafe {
+            if let Some(map) = self.0.as_mut() {
+                let result = cef_dll_sys::cef_string_multimap_key(map, index, key.into());
+                // libcef / cef_string_multimap.cc: 59
+                return match result {
+                    0 => false,
+                    1 => true,
+                    _ => false, // should be unreachable
+                };
+            }
+
+            false
+        }
+    }
+
+    pub fn value(&self, index: usize, value: &mut CefString) -> bool {
+        unsafe {
+            if let Some(map) = self.0.as_mut() {
+                let result = cef_dll_sys::cef_string_multimap_value(map, index, value.into());
+                // libcef / cef_string_multimap.cc: 59
+                return match result {
+                    0 => false,
+                    1 => true,
+                    _ => false, // should be unreachable
+                };
+            }
+
+            false
+        }
+    }
+
+    pub fn enumerate(&self, key: &CefString, index: usize, value: &mut CefString) -> bool {
+        unsafe {
+            if let Some(map) = self.0.as_mut() {
+                let result = cef_dll_sys::cef_string_multimap_enumerate(
+                    map,
+                    key.into(),
+                    index,
+                    value.into(),
+                );
+                // libcef / cef_string_multimap.cc: 29
+                return match result {
+                    0 => false,
+                    1 => true,
+                    _ => false, // should be unreachable
+                };
+            }
+
+            false
+        }
+    }
 }
 
 impl Debug for CefStringMultimap {
@@ -879,12 +945,7 @@ impl Debug for CefStringMultimap {
                 let mut value = mem::zeroed();
                 cef_dll_sys::cef_string_multimap_value(self.0, i, &mut value);
 
-                writeln!(
-                    f,
-                    "{}: {},",
-                    CefString::from(key),
-                    CefString::from(value)
-                )?;
+                writeln!(f, "{}: {},", CefString::from(key), CefString::from(value))?;
             }
             writeln!(f, "}}")?;
         }
@@ -910,5 +971,20 @@ impl From<*mut _cef_string_multimap_t> for CefStringMultimap {
 impl From<&mut CefStringMultimap> for *mut _cef_string_multimap_t {
     fn from(value: &mut CefStringMultimap) -> Self {
         value.0
+    }
+}
+
+mod tests {
+    #![allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn test_string_multimap() {
+        let cache_control_str = CefString::from("Cache-Control");
+        let cache_control_val = CefString::from("\"no-cache, no-store, must-revalidate\"");
+
+        let mut map = CefStringMultimap::new().expect("Unable to create map!");
+
+        map.append(&cache_control_str, &cache_control_val);
     }
 }
