@@ -1,14 +1,17 @@
 //! String module
 
-use cef_dll_sys::{_cef_string_list_t, _cef_string_map_t, _cef_string_multimap_t, _cef_string_utf16_t, _cef_string_utf8_t, _cef_string_wide_t};
+use crate::CefString;
+use cef_dll_sys::{
+    _cef_string_list_t, _cef_string_map_t, _cef_string_multimap_t, _cef_string_utf16_t,
+    _cef_string_utf8_t, _cef_string_wide_t,
+};
+use std::hint::unreachable_unchecked;
 use std::{
     fmt::{self, Debug, Display, Formatter},
     mem,
     ptr::{self, NonNull},
     slice,
 };
-use std::hint::unreachable_unchecked;
-use crate::CefString;
 
 struct UserFreeData<T>(Option<NonNull<T>>);
 
@@ -896,7 +899,7 @@ impl CefStringMultimap {
 
     pub fn value(&self, index: usize) -> Option<CefString> {
         unsafe {
-             if let Some(map) = self.0.as_mut() {
+            if let Some(map) = self.0.as_mut() {
                 let mut value = mem::zeroed();
                 let result = cef_dll_sys::cef_string_multimap_value(map, index, &mut value);
 
@@ -917,12 +920,8 @@ impl CefStringMultimap {
             if let Some(map) = self.0.as_mut() {
                 let mut val = mem::zeroed();
 
-                let result = cef_dll_sys::cef_string_multimap_enumerate(
-                    map,
-                    key.into(),
-                    index,
-                    &mut val
-                );
+                let result =
+                    cef_dll_sys::cef_string_multimap_enumerate(map, key.into(), index, &mut val);
 
                 // libcef / cef_string_multimap.cc: 29
                 return match result {
@@ -940,6 +939,24 @@ impl CefStringMultimap {
         unsafe {
             if let Some(map) = self.0.as_mut() {
                 return cef_dll_sys::cef_string_multimap_size(map);
+            }
+        }
+
+        0
+    }
+
+    pub fn clear(&mut self) {
+        unsafe {
+            if let Some(map) = self.0.as_mut() {
+                cef_dll_sys::cef_string_multimap_clear(map);
+            }
+        }
+    }
+
+    pub fn find_count(&self, key: &CefString) -> usize {
+        unsafe {
+            if let Some(map) = self.0.as_mut() {
+                return cef_dll_sys::cef_string_multimap_find_count(map, key.into());
             }
         }
 
@@ -1030,6 +1047,19 @@ mod tests {
         {
             let val = map.enumerate(&cache_control_str, 1);
             assert!(val.is_none());
+        }
+
+        // Test find_count
+        {
+            let result = map.find_count(&cache_control_str);
+            assert_eq!(result, 1);
+        }
+
+        // Test clear
+        {
+            assert_ne!(map.size(), 0);
+            map.clear();
+            assert_eq!(map.size(), 0);
         }
     }
 }
