@@ -1,16 +1,13 @@
 //! String module
 
-use cef_dll_sys::{
-    _cef_string_list_t, _cef_string_map_t, _cef_string_multimap_t, _cef_string_utf16_t,
-    _cef_string_utf8_t, _cef_string_wide_t,
-};
+use cef_dll_sys::{_cef_string_list_t, _cef_string_map_t, _cef_string_multimap_t, _cef_string_utf16_t, _cef_string_utf8_t, _cef_string_wide_t};
 use std::{
     fmt::{self, Debug, Display, Formatter},
     mem,
     ptr::{self, NonNull},
     slice,
 };
-
+use std::hint::unreachable_unchecked;
 use crate::CefString;
 
 struct UserFreeData<T>(Option<NonNull<T>>);
@@ -879,57 +876,74 @@ impl CefStringMultimap {
         }
     }
 
-    pub fn key(&self, index: usize, key: &mut CefString) -> bool {
+    pub fn key(&self, index: usize) -> Option<CefString> {
         unsafe {
             if let Some(map) = self.0.as_mut() {
-                let result = cef_dll_sys::cef_string_multimap_key(map, index, key.into());
+                let mut key = mem::zeroed();
+                let result = cef_dll_sys::cef_string_multimap_key(map, index, &mut key);
+
                 // libcef / cef_string_multimap.cc: 59
                 return match result {
-                    0 => false,
-                    1 => true,
-                    _ => false, // should be unreachable
+                    0 => None,
+                    1 => Some(CefString::from(key)),
+                    _ => unreachable_unchecked(), // should be unreachable, optimize away
                 };
             }
 
-            false
+            None
         }
     }
 
-    pub fn value(&self, index: usize, value: &mut CefString) -> bool {
+    pub fn value(&self, index: usize) -> Option<CefString> {
         unsafe {
-            if let Some(map) = self.0.as_mut() {
-                let result = cef_dll_sys::cef_string_multimap_value(map, index, value.into());
-                // libcef / cef_string_multimap.cc: 59
+             if let Some(map) = self.0.as_mut() {
+                let mut value = mem::zeroed();
+                let result = cef_dll_sys::cef_string_multimap_value(map, index, &mut value);
+
+                // libcef / cef_string_multimap.cc: 77
                 return match result {
-                    0 => false,
-                    1 => true,
-                    _ => false, // should be unreachable
+                    0 => None,
+                    1 => Some(CefString::from(value)),
+                    _ => unreachable_unchecked(), // should be unreachable, optimize away
                 };
             }
 
-            false
+            None
         }
     }
 
-    pub fn enumerate(&self, key: &CefString, index: usize, value: &mut CefString) -> bool {
+    pub fn enumerate(&self, key: &CefString, index: usize) -> Option<CefString> {
         unsafe {
             if let Some(map) = self.0.as_mut() {
+                let mut val = mem::zeroed();
+
                 let result = cef_dll_sys::cef_string_multimap_enumerate(
                     map,
                     key.into(),
                     index,
-                    value.into(),
+                    &mut val
                 );
+
                 // libcef / cef_string_multimap.cc: 29
                 return match result {
-                    0 => false,
-                    1 => true,
-                    _ => false, // should be unreachable
+                    0 => None,
+                    1 => Some(CefString::from(val)),
+                    _ => unreachable_unchecked(), // should be unreachable, optimize away
                 };
             }
 
-            false
+            None
         }
+    }
+
+    pub fn size(&self) -> usize {
+        unsafe {
+            if let Some(map) = self.0.as_mut() {
+                return cef_dll_sys::cef_string_multimap_size(map);
+            }
+        }
+
+        0
     }
 }
 
@@ -986,5 +1000,36 @@ mod tests {
         let mut map = CefStringMultimap::new().expect("Unable to create map!");
 
         map.append(&cache_control_str, &cache_control_val);
+
+        assert_eq!(map.size(), 1);
+
+        // Run test with -- --nocapture to see the output
+        eprintln!("map => {:?}", map);
+
+        // Test key, value retrieval at index
+        {
+            let key = map.key(0);
+            let val = map.value(0);
+
+            let s0 = key.unwrap().to_string();
+            let s1 = val.unwrap().to_string();
+
+            assert_eq!(s0, cache_control_str.to_string());
+            assert_eq!(s1, cache_control_val.to_string());
+        }
+
+        // Test enumerate #1 -- Found
+        {
+            let val = map.enumerate(&cache_control_str, 0).unwrap();
+            let s1 = val.to_string();
+
+            assert_eq!(s1, cache_control_val.to_string());
+        }
+
+        // Test enumerate #2 -- Index not found
+        {
+            let val = map.enumerate(&cache_control_str, 1);
+            assert!(val.is_none());
+        }
     }
 }
